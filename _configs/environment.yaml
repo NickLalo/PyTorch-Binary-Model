@@ -1,0 +1,44 @@
+# This file can be used to create a conda environment and install the listed packages to run the code in this project. If you are on a windows machine,
+# you will need to run this on WSL to install the GPU versions of the libraries.
+
+# To create the environment, run: (this can take some time to run)
+# 
+#     conda env create -f _configs/environment.yaml -y
+#
+# After creating the environment, activate it using:
+#
+#     conda activate binary
+#
+# If you need to delete the environment, run:
+#
+#     STEP 1.
+#         conda deactivate
+#     STEP 2.
+#         conda env remove --name binary
+#
+# This will set up your environment with the specified dependencies.
+
+name: binary
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+      - jupyter
+      - ipykernel
+      - notebook
+      - ipywidgets
+      - tqdm
+      - numpy
+      - pandas
+      - matplotlib
+      - scikit-learn
+      - pyyaml
+      - nvidia-ml-py
+      - torch
+      - lightning
+      - executorch
+      - imageio
+      - mlflow

@@ -1,0 +1,14 @@
+# Training data directory
+training_data/
+
+# Lightning logs directory
+lightning_logs/
+
+# VSCode settings
+.vscode/
+
+# model run output
+acc_curves.png
+loss_curves.png
+best_model*
+binary_mlp_xnnpack.pte
