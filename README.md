@@ -1,0 +1,1 @@
+The simplest PyTorch Lightning binary classifier model with training, inference, and export to ExecuTorch format.
