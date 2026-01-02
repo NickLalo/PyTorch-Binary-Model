@@ -12,3 +12,7 @@ acc_curves.png
 loss_curves.png
 best_model*
 binary_mlp_xnnpack.pte
+
+# non-project-critical files
+zz*
+zz/*
