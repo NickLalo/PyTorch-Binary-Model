@@ -16,3 +16,6 @@ binary_mlp_xnnpack.pte
 # non-project-critical files
 zz*
 zz/*
+
+# virtual environment that will live on the Pi
+.venv/
