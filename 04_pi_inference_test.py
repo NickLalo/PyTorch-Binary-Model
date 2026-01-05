@@ -3,10 +3,10 @@
 Pi inference smoke test for ExecuTorch .pte model.
 
 What it does:
-  1) Loads binary_mlp_xnnpack.pte from the current directory (or --pte_path).
+  1) Loads binary_mlp_xnnpack.pte from the current directory (or --pte_path) and times load.
   2) Creates one random binary input vector of length --input_dim.
-  3) Runs ExecuTorch forward() once.
-  4) Prints the input bits, logits, predicted class, and the correct integer.
+  3) Times one ExecuTorch forward() inference.
+  4) Prints the input bits, logits, predicted class, correct integer, and timing info.
 
 Notes:
   - This script assumes your exported model expects a float32 tensor shaped (1, input_dim).
@@ -14,6 +14,7 @@ Notes:
 """
 
 import argparse
+import time
 from pathlib import Path
 from typing import List
 
@@ -50,9 +51,11 @@ def main() -> None:
 
     print(f"Loading ExecuTorch program: {pte_path}")
 
+    load_start = time.perf_counter()
     rt = Runtime.get()
     program = rt.load_program(pte_path, verification=Verification.Minimal)
     forward = program.load_method("forward")
+    load_ms = (time.perf_counter() - load_start) * 1000.0
 
     bits_i64 = torch.randint(0, 2, (args.input_dim,), dtype=torch.int64)
     bits_list = bits_i64.tolist()
@@ -63,18 +66,20 @@ def main() -> None:
     print(f"Input bits:      {format_bits(bits_list)}")
     print(f"Correct integer: {expected}")
 
+    infer_start = time.perf_counter()
     out = forward.execute((x,))[0]
+    infer_ms = (time.perf_counter() - infer_start) * 1000.0
 
     if not isinstance(out, torch.Tensor):
         out = torch.tensor(out)
 
     logits = out.to(dtype=torch.float32).cpu()
-
     pred = int(torch.argmax(logits, dim=1).item())
 
     print(f"Logits:          {logits.numpy().tolist()}")
     print(f"Predicted class: {pred}")
     print(f"Correct:         {pred == expected}")
+    print(f"Timing:          load={load_ms:.3f} ms | inference={infer_ms:.3f} ms")
 
     return
 
