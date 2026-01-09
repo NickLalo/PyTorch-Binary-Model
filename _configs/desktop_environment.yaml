@@ -1,6 +1,6 @@
 # This file can be used to create a conda desktop_environment and install the listed packages to run the code in this project. If you are on a 
 # windows machine, you will need to run this on WSL to install the GPU versions of the libraries. This 'desktop environment' is used to train 
-# and export the binary classification model. There is another requirements-for-pi.txt file which is used to setup the Raspberry Pi environment.
+# and export the binary classification model. A venv needs to be created on the pi to run the exported model.
 
 # To create the desktop_environment, run: (this can take some time to run)
 # 

@@ -1,1 +1,0 @@
-TODO: fill this out with the minimal requirements to run inference on a Raspberry Pi zero 2W
