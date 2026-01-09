@@ -18,8 +18,15 @@ import time
 from pathlib import Path
 from typing import List
 
+start_time = time.time()
 import torch
+end_time = time.time()
+print(f"Imported torch in {(end_time - start_time) * 1000.0:.3f} ms")
+
+start_time = time.time()
 from executorch.runtime import Runtime, Verification
+end_time = time.time()
+print(f"Imported executorch.runtime in {(end_time - start_time) * 1000.0:.3f} ms")
 
 
 SEED = 112
