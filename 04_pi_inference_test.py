@@ -4,9 +4,8 @@ Pi inference smoke test for ExecuTorch .pte model.
 
 What it does:
   1) Loads binary_mlp_xnnpack.pte from the current directory (or --pte_path) and times load.
-  2) Creates one random binary input vector of length --input_dim.
-  3) Times one ExecuTorch forward() inference.
-  4) Prints the input bits, logits, predicted class, correct integer, and timing info.
+  2) Runs N random inferences on binary inputs of length --input_dim.
+  3) Prints one example input/output plus timing stats across all inferences.
 
 Notes:
   - This script assumes your exported model expects a float32 tensor shaped (1, input_dim).
@@ -21,12 +20,12 @@ from typing import List
 start_time = time.time()
 import torch
 end_time = time.time()
-print(f"Imported torch in {(end_time - start_time) * 1000.0:.3f} ms")
+print(f"Imported torch in {(end_time - start_time):.3f} s")
 
 start_time = time.time()
 from executorch.runtime import Runtime, Verification
 end_time = time.time()
-print(f"Imported executorch.runtime in {(end_time - start_time) * 1000.0:.3f} ms")
+print(f"Imported executorch.runtime in {(end_time - start_time):.3f} s")
 
 
 SEED = 112
@@ -45,9 +44,10 @@ def format_bits(bits: List[int]) -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run a single ExecuTorch inference on the Pi.")
+    parser = argparse.ArgumentParser(description="Run multiple ExecuTorch inferences on the Pi.")
     parser.add_argument("--pte_path", type=str, default="binary_mlp_xnnpack.pte", help="Path to .pte file.")
     parser.add_argument("--input_dim", type=int, default=4, help="Number of input bits (default: 4).")
+    parser.add_argument("--num_runs", type=int, default=1000, help="Number of random inferences to run.")
     args = parser.parse_args()
 
     torch.manual_seed(SEED)
@@ -55,6 +55,8 @@ def main() -> None:
     pte_path = Path(args.pte_path).expanduser().resolve()
     if not pte_path.exists():
         raise FileNotFoundError(f"Could not find .pte file at: {pte_path}")
+    if args.num_runs < 1:
+        raise ValueError("--num_runs must be >= 1")
 
     print(f"Loading ExecuTorch program: {pte_path}")
 
@@ -64,29 +66,61 @@ def main() -> None:
     forward = program.load_method("forward")
     load_ms = (time.perf_counter() - load_start) * 1000.0
 
-    bits_i64 = torch.randint(0, 2, (args.input_dim,), dtype=torch.int64)
-    bits_list = bits_i64.tolist()
-    expected = bits_to_int(bits_list)
+    times_ms = []
+    num_correct = 0
+    example = None
 
-    x = bits_i64.to(dtype=torch.float32).unsqueeze(0).contiguous()
+    for _ in range(args.num_runs):
+        bits_i64 = torch.randint(0, 2, (args.input_dim,), dtype=torch.int64)
+        bits_list = bits_i64.tolist()
+        expected = bits_to_int(bits_list)
 
-    print(f"Input bits:      {format_bits(bits_list)}")
-    print(f"Correct integer: {expected}")
+        x = bits_i64.to(dtype=torch.float32).unsqueeze(0).contiguous()
 
-    infer_start = time.perf_counter()
-    out = forward.execute((x,))[0]
-    infer_ms = (time.perf_counter() - infer_start) * 1000.0
+        infer_start = time.perf_counter()
+        out = forward.execute((x,))[0]
+        infer_ms = (time.perf_counter() - infer_start) * 1000.0
+        times_ms.append(infer_ms)
 
-    if not isinstance(out, torch.Tensor):
-        out = torch.tensor(out)
+        if not isinstance(out, torch.Tensor):
+            out = torch.tensor(out)
 
-    logits = out.to(dtype=torch.float32).cpu()
-    pred = int(torch.argmax(logits, dim=1).item())
+        logits = out.to(dtype=torch.float32).cpu()
+        pred = int(torch.argmax(logits, dim=1).item())
+        num_correct += int(pred == expected)
 
-    print(f"Logits:          {logits.numpy().tolist()}")
-    print(f"Predicted class: {pred}")
-    print(f"Correct:         {pred == expected}")
-    print(f"Timing:          load={load_ms:.3f} ms | inference={infer_ms:.3f} ms")
+        if example is None:
+            example = (bits_list, expected, logits, pred)
+
+    if example is not None:
+        bits_list, expected, logits, pred = example
+        print(f"Input bits:      {format_bits(bits_list)}")
+        print(f"Correct integer: {expected}")
+        print(f"Logits:          {logits.numpy().tolist()}")
+        print(f"Predicted class: {pred}")
+        print(f"Correct:         {pred == expected}")
+
+    times_ms.sort()
+    total_ms = sum(times_ms)
+    avg_ms = total_ms / len(times_ms)
+    min_ms = times_ms[0]
+    max_ms = times_ms[-1]
+    p50_ms = times_ms[int(0.50 * (len(times_ms) - 1))]
+    p95_ms = times_ms[int(0.95 * (len(times_ms) - 1))]
+    accuracy = num_correct / len(times_ms) if times_ms else 0.0
+
+    print(
+        "Timing:          "
+        f"load={load_ms:.3f} ms | "
+        f"runs={len(times_ms)} | "
+        f"total={total_ms:.3f} ms | "
+        f"avg={avg_ms:.3f} ms | "
+        f"p50={p50_ms:.3f} ms | "
+        f"p95={p95_ms:.3f} ms | "
+        f"min={min_ms:.3f} ms | "
+        f"max={max_ms:.3f} ms"
+    )
+    print(f"Accuracy:        {accuracy:.3%} ({num_correct}/{len(times_ms)})")
 
     return
 
