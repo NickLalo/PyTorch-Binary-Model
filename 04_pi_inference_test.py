@@ -3,17 +3,16 @@
 Pi inference smoke test for ExecuTorch .pte model.
 
 What it does:
-  1) Loads binary_mlp_xnnpack.pte from the current directory (or --pte_path) and times load.
-  2) Runs N random inferences on binary inputs of length --input_dim.
+  1) Loads binary_mlp_xnnpack.pte from the current directory
+  2) Runs 1000 random inferences on binary inputs of length 4 bits (0..15)
   3) Prints one example input/output plus timing stats across all inferences.
-  4) Samples system-wide RAM usage from /proc/meminfo every N runs (default: 100) and prints stats.
+  4) Samples system-wide RAM usage from /proc/meminfo every 100 runs and prints stats.
 
 Notes:
   - This script assumes your exported model expects a float32 tensor shaped (1, input_dim).
   - Default input_dim is 4 (for 4-bit integers 0..15).
 """
 
-import argparse
 import time
 from pathlib import Path
 from typing import Dict, List, Tuple
@@ -30,6 +29,10 @@ print(f"Imported executorch.runtime in {(end_time - start_time):.3f} s")
 
 
 SEED = 112
+LOOP_COUNT = 1_000_000
+SAMPLE_MEMORY_EVERY = 100  # record the system memory every N samples
+PROGRESS_EVERY = 10_000  # print progress every N runs (0 to disable)
+PTE_PATH = Path("binary_mlp_xnnpack.pte").expanduser().resolve()
 
 
 def bits_to_int(bits: List[int]) -> int:
@@ -127,42 +130,22 @@ def _format_system_mem_line(metrics_kb: Dict[str, int], prefix: str) -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run multiple ExecuTorch inferences on the Pi.")
-    parser.add_argument("--pte_path", type=str, default="binary_mlp_xnnpack.pte", help="Path to .pte file.")
-    parser.add_argument("--input_dim", type=int, default=4, help="Number of input bits (default: 4).")
-    parser.add_argument("--num_runs", type=int, default=1000, help="Number of random inferences to run.")
-    parser.add_argument(
-        "--mem_sample_every",
-        type=int,
-        default=100,
-        help="Sample system RAM every N runs (default: 100). Use 0 to disable.",
-    )
-    args = parser.parse_args()
-
     torch.manual_seed(SEED)
-
-    pte_path = Path(args.pte_path).expanduser().resolve()
-    if not pte_path.exists():
-        raise FileNotFoundError(f"Could not find .pte file at: {pte_path}")
-    if args.num_runs < 1:
-        raise ValueError("--num_runs must be >= 1")
-    if args.mem_sample_every < 0:
-        raise ValueError("--mem_sample_every must be >= 0")
 
     start_mem = _compute_system_mem_metrics(_read_meminfo_kb())
     print(_format_system_mem_line(start_mem, prefix="System RAM (start):     "))
 
-    print(f"Loading ExecuTorch program: {pte_path}")
+    print(f"Loading ExecuTorch program: {PTE_PATH}")
 
     load_start = time.perf_counter()
     rt = Runtime.get()
-    program = rt.load_program(pte_path, verification=Verification.Minimal)
+    program = rt.load_program(PTE_PATH, verification=Verification.Minimal)
     forward = program.load_method("forward")
     load_ms = (time.perf_counter() - load_start) * 1000.0
 
     after_load_mem = _compute_system_mem_metrics(_read_meminfo_kb())
     print(_format_system_mem_line(after_load_mem, prefix="System RAM (after load):"))
-    print(f"Load time:               {load_ms:.3f} ms")
+    print(f"Model Load time:               {load_ms:.3f} ms")
 
     times_ms: List[float] = []
     num_correct = 0
@@ -172,13 +155,14 @@ def main() -> None:
     # Each entry: (run_index, used_kb, avail_kb)
     mem_samples: List[Tuple[int, int, int]] = []
 
-    sample_every = args.mem_sample_every
-    if sample_every > 0:
+    if SAMPLE_MEMORY_EVERY > 0:
         metrics = _compute_system_mem_metrics(_read_meminfo_kb())
         mem_samples.append((0, metrics["used_kb"], metrics["avail_kb"]))
 
-    for i in range(args.num_runs):
-        bits_i64 = torch.randint(0, 2, (args.input_dim,), dtype=torch.int64)
+    for i in range(LOOP_COUNT):
+        if PROGRESS_EVERY > 0 and (i + 1) % PROGRESS_EVERY == 0:
+            print(f"Progress: {i + 1}/{LOOP_COUNT}")
+        bits_i64 = torch.randint(0, 2, 4, dtype=torch.int64)
         bits_list = bits_i64.tolist()
         expected = bits_to_int(bits_list)
 
@@ -199,9 +183,9 @@ def main() -> None:
         if example is None:
             example = (bits_list, expected, logits, pred)
 
-        if sample_every > 0:
+        if SAMPLE_MEMORY_EVERY > 0:
             # Sample every N runs, including the last run.
-            is_sample_point = ((i + 1) % sample_every) == 0
+            is_sample_point = ((i + 1) % SAMPLE_MEMORY_EVERY) == 0
             is_last = (i + 1) == args.num_runs
             if is_sample_point or is_last:
                 metrics = _compute_system_mem_metrics(_read_meminfo_kb())
@@ -253,7 +237,7 @@ def main() -> None:
 
         print(
             "System RAM stats: "
-            f"samples={len(mem_samples)} (every {sample_every} runs) | "
+            f"samples={len(mem_samples)} (every {SAMPLE_MEMORY_EVERY} runs) | "
             f"used_min={_kb_to_mib(used_min):.1f} MiB | "
             f"used_avg={_kb_to_mib(int(used_avg)):.1f} MiB | "
             f"used_max={_kb_to_mib(used_max):.1f} MiB | "
