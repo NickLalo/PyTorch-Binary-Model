@@ -162,7 +162,7 @@ def main() -> None:
     for i in range(LOOP_COUNT):
         if PROGRESS_EVERY > 0 and (i + 1) % PROGRESS_EVERY == 0:
             print(f"Progress: {i + 1}/{LOOP_COUNT}")
-        bits_i64 = torch.randint(0, 2, 4, dtype=torch.int64)
+        bits_i64 = torch.randint(0, 2, (4,), dtype=torch.int64)
         bits_list = bits_i64.tolist()
         expected = bits_to_int(bits_list)
 
@@ -186,7 +186,7 @@ def main() -> None:
         if SAMPLE_MEMORY_EVERY > 0:
             # Sample every N runs, including the last run.
             is_sample_point = ((i + 1) % SAMPLE_MEMORY_EVERY) == 0
-            is_last = (i + 1) == args.num_runs
+            is_last = (i + 1) == LOOP_COUNT
             if is_sample_point or is_last:
                 metrics = _compute_system_mem_metrics(_read_meminfo_kb())
                 mem_samples.append((i + 1, metrics["used_kb"], metrics["avail_kb"]))
