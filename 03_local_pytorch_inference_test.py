@@ -55,6 +55,7 @@ def format_bits(bits: List[int]) -> str:
 
 
 def run_inference_tests(model: torch.nn.Module, num_runs: int) -> None:
+    start_time = time.time()
     model.eval()
     device = torch.device("cpu")
     model.to(device)
@@ -92,8 +93,13 @@ def run_inference_tests(model: torch.nn.Module, num_runs: int) -> None:
     max_ms = max(durations_ms) if durations_ms else 0.0
 
     print("\nSummary:")
-    print(f"  Correct: {correct_count}/{total} ({pct:.2f}%)")
-    print(f"  Timing: mean={mean_ms:.3f} ms | std={std_ms:.3f} ms | max={max_ms:.3f} ms")
+    print(f"\tCorrect: {correct_count}/{total} ({pct:.2f}%)")
+    print(f"\tTiming: mean={mean_ms:.3f} ms | std={std_ms:.3f} ms | max={max_ms:.3f} ms")
+    end_time = time.time()
+    time_hours = int((end_time - start_time) // 3600)
+    time_minutes = int(((end_time - start_time) % 3600) // 60)
+    time_seconds = ((end_time - start_time) % 3600) % 60
+    print(f"\tTotal time for {num_runs} inferences (HH:MM:SS.ss): {time_hours:02d}:{time_minutes:02d}:{time_seconds:05.2f}")
 
 
 def main():

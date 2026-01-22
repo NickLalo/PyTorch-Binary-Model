@@ -10,8 +10,8 @@ lightning_logs/
 # model run output
 acc_curves.png
 loss_curves.png
-best_model*
-binary_mlp_xnnpack.pte
+*ckpt
+*.pte
 
 # non-project-critical files
 zz*

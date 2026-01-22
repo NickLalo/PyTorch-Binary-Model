@@ -10,7 +10,6 @@ Assumes two CSVs made by your generator:
 
 import argparse
 from pathlib import Path
-from pydoc import resolve
 import time
 import shutil
 import numpy as np
@@ -23,8 +22,8 @@ import lightning.pytorch as pl
 from lightning.pytorch.loggers import CSVLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
 # ExecuTorch export + runtime
-from torch.export import export, Dim
-from executorch.exir import to_edge, to_edge_transform_and_lower
+from torch.export import export
+from executorch.exir import to_edge_transform_and_lower
 from executorch.backends.xnnpack.partition.xnnpack_partitioner import XnnpackPartitioner
 from executorch.runtime import Runtime, Verification
 
